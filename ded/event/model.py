@@ -1,33 +1,17 @@
 from pkg_resources import resource_filename
-from tensorflow import keras
-from tensorflow.python.keras.layers import Reshape, MaxPooling2D, Conv2D, Dropout, Flatten, Dense
+from tensorflow.python.keras import Model
+from tensorflow.python.keras.applications import InceptionV3
 from tensorflow.python.keras.optimizers import SGD
 from tensorflow.python.keras.utils import plot_model
 
 from ded.config import resource_dir
 
 
-def createModel(resolution=800):
-    model = keras.Sequential()
-    model.add(Reshape((resolution, resolution, 1), input_shape=(resolution, resolution)))
-    model.add(MaxPooling2D(pool_size=(5, 5)))
-    model.add(Conv2D(32, (3, 3), activation='relu'))
-    model.add(Conv2D(32, (3, 3), activation='relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.25))
+def createModel():
+    model: Model = InceptionV3(weights=None, input_shape=(800, 800, 1), classes=2)
 
-    model.add(Conv2D(64, (3, 3), activation='relu'))
-    model.add(Conv2D(64, (3, 3), activation='relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(0.25))
-
-    model.add(Flatten())
-    model.add(Dense(256, activation='relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(1, kernel_initializer='normal', activation="sigmoid"))
-
-    sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
-    model.compile(loss='binary_crossentropy', optimizer="adam", metrics=["accuracy"])
+    sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
+    model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=["accuracy"])
 
     return model
 

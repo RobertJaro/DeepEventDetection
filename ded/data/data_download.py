@@ -4,12 +4,12 @@ from threading import Thread
 import astropy.units as u
 import numpy as np
 import sunpy
-from sqlalchemy import func
+from sqlalchemy import func, not_
 from sqlalchemy.orm import Session
 from sunpy.net import Fido, attrs
 
 from ded.database.config import DEDSession
-from ded.database.setup import Map
+from ded.database.setup import Map, Event
 
 
 def loadData(s_map: Map):
@@ -21,14 +21,15 @@ def loadData(s_map: Map):
     return Fido.fetch(query, progress=True)
 
 
-def download(event_types, amount=100, flag="TRAIN"):
+def download(event_types, amount=100, flag="TRAIN", negate=False):
     session: Session = DEDSession()
     part_size = int(amount / len(event_types))
 
     maps = []
     for type in event_types:
-        result = session.query(Map).order_by(func.random()).filter_by(path=None, flag=flag).join(Map.events).filter_by(
-            type=type).all()[:part_size]
+        map_filter = not_(Map.events.any(Event.type == type)) if negate else Map.events.any(Event.type == type)
+        query = session.query(Map).filter(Map.path == None, Map.flag == flag, map_filter).order_by(func.random())
+        result = query.limit(part_size).all()
         if len(result) < part_size:
             raise Exception("Not enough entries available to fetch!")
         maps.extend(result)
@@ -47,8 +48,8 @@ def requestData(maps):
             s_map = session.query(Map).filter(Map.id == id).first()
             paths = loadData(s_map)
             if len(paths) == 0:
-                continue
-                # session.query(Map).filter(Map.id == id).delete()
+                print("ERROR DOWNLOADING DATA")
+                session.query(Map).filter(Map.id == id).delete()
             else:
                 s_map.path = paths[0]
             session.commit()
@@ -60,4 +61,4 @@ def requestData(maps):
 if __name__ == '__main__':
     sunpy.config.set("downloads", "download_dir", "D:\\UNI\\DeepLearning\\SolarData\\DB")
 
-    download(event_types=["FL", "AR", "CH", "ER"], amount=1000, flag="TRAIN")
+    download(event_types=["FL"], amount=200, flag="TRAIN", negate=True)  # , "AR", "CH", "ER"

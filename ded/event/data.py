@@ -4,7 +4,7 @@ import random
 import numpy as np
 import sunpy.map
 from astropy import units as u
-from sqlalchemy import func
+from sqlalchemy import func, not_
 from sqlalchemy.orm import Session
 from tensorflow.python.keras.utils import Sequence
 
@@ -38,24 +38,23 @@ class DataGenerator(Sequence):
 
     def _loadDataSet(self, event_type, flag, size):
         session: Session = DEDSession()
+        part_size = int(size / 2)
 
-        event_query = session.query(Map)
-        event_query = event_query.filter(Map.path != None, Map.flag == flag)
-        event_query = event_query.order_by(func.random())
-        event_query = event_query.join(Map.events)
-        event_query = event_query.filter(Event.type == event_type)
-        event_query = event_query.with_entities(Map.id).distinct(Map.id)
-        event_map_ids = event_query.all()
-        event_map_ids = list(map(lambda x: x[0], event_map_ids))  # extract results
+        event_filter = Map.events.any(Event.type == event_type)
 
-        none_ids = session.query(Map).filter(Map.path != None, Map.flag == flag,
-                                             Map.id.notin_(event_query)).order_by(func.random()).with_entities(
-            Map.id).distinct(Map.id).all()
-        none_ids = list(map(lambda x: x[0], none_ids))  # extract results
+        query = session.query(Map).filter(Map.path != None, Map.flag == flag, event_filter).order_by(
+            func.random()).with_entities(Map.id)
+        result = query.limit(part_size).all()
+        event_map_ids = list(map(lambda x: x[0], result))
+
+        query = session.query(Map).filter(Map.path != None, Map.flag == flag, not_(event_filter)).order_by(
+            func.random()).with_entities(Map.id)
+        result = query.limit(part_size).all()
+        none_ids = list(map(lambda x: x[0], result))
+
         session.close()
 
-        part_size = int(size / 2)
-        data = [[id, 1] for id in event_map_ids[:part_size]] + [[id, 0] for id in none_ids[:part_size]]
+        data = [[id, [0, 1]] for id in event_map_ids] + [[id, [1, 0]] for id in none_ids]
         if len(data) < size:
             raise Exception("Not enough entries available!")
 
@@ -65,9 +64,9 @@ class DataGenerator(Sequence):
     def _loadData(self, map_id, session):
         s_map = session.query(Map).filter(Map.id == map_id).first()
         if s_map.data800:
-            return pickle.loads(s_map.data800)
+            return np.reshape(pickle.loads(s_map.data800), (800, 800, 1)).tolist()
         if s_map.path:
             data = sunpy.map.Map(s_map.path).resample((800, 800) * u.pixel).data.tolist()
             s_map.data800 = pickle.dumps(data)
             session.commit()
-            return data
+            return np.reshape(data, (800, 800, 1)).tolist()

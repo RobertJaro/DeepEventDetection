@@ -1,4 +1,5 @@
 import astropy.units as u
+import sunpy
 from dateutil import parser
 from sqlalchemy import or_, and_, select
 from sqlalchemy.orm import Session
@@ -15,11 +16,11 @@ def loadEvents(tstart, tend, types, session):
     hek_result = []
     for type in types:
         res = client.search(hek.attrs.Time(tstart, tend), hek.attrs.EventType(type))
-        res = [entry for entry in res if entry['obs_instrument'] == instrument]
+        res = [entry for entry in res if
+               entry['obs_instrument'] == instrument and entry["obs_meanwavel"] == wavelength * 1e-8]
         if len(res) == 0:
             raise Exception("No Data found for event type " + type)
         hek_result.extend(res)
-    hek_result = [res for res in hek_result if res['obs_instrument'] == instrument]
 
     for entry in hek_result:
         event = Event(entry["kb_archivid"],
@@ -42,6 +43,7 @@ def loadMaps(tstart, tend, session):
     for i in range(vso_results.file_num):
         query = vso_results[0, i]
         entry = list(query.responses)[0][0]
+        entry.time.end = entry.time.end.replace("240000", "000000") # workaround
         s_map = Map(id=entry.fileid,
                     tstart=parser.parse(entry.time.start),
                     tend=parser.parse(entry.time.end),
@@ -65,10 +67,10 @@ def mapEvents(session):
 if __name__ == '__main__':
     session: Session = DEDSession()
 
-    tstart = '2016/09/01 00:00:00'
-    tend = '2017/01/01 00:00:00'
+    tstart = '2018/04/01 00:00:00'
+    tend = '2018/06/01 00:00:00'
 
-    loadEvents(tstart, tend, ["FL", "AR", "CH", "ER"], session)
+    loadEvents(tstart, tend, ["FL"], session)#, "AR", "CH", "ER"
     loadMaps(tstart, tend, session)
     mapEvents(session)
 
