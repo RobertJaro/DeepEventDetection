@@ -4,10 +4,12 @@ import random
 import numpy as np
 import sunpy.map
 from astropy import units as u
+from pkg_resources import resource_filename
 from sqlalchemy import func, not_
 from sqlalchemy.orm import Session
 from tensorflow.python.keras.utils import Sequence
 
+from ded.config import resource_dir
 from ded.database.config import DEDSession
 from ded.database.setup import Map, Event
 
@@ -29,8 +31,8 @@ class DataGenerator(Sequence):
         pos = index * self.batch_size
         batch = np.array(
             [[self._loadData(map_id, session), label] for map_id, label in self.data[pos:pos + self.batch_size]])
-        feature_batch = np.array(batch[:, 0].tolist())
-        label_batch = np.array(batch[:, 1].tolist())
+        feature_batch = np.array(batch[:, 0].tolist(), dtype=np.float16)
+        label_batch = np.array(batch[:, 1].tolist(), dtype=np.float16)
 
         session.close()
 
@@ -64,9 +66,24 @@ class DataGenerator(Sequence):
     def _loadData(self, map_id, session):
         s_map = session.query(Map).filter(Map.id == map_id).first()
         if s_map.data800:
-            return np.reshape(pickle.loads(s_map.data800), (800, 800, 1)).tolist()
+            return prepareData(pickle.loads(s_map.data800))
         if s_map.path:
             data = sunpy.map.Map(s_map.path).resample((800, 800) * u.pixel).data.tolist()
             s_map.data800 = pickle.dumps(data)
             session.commit()
-            return np.reshape(data, (800, 800, 1)).tolist()
+            return prepareData(data)
+
+
+def prepareData(data):
+    shift = 1
+    data = (np.array(data) - shift)
+    np.nan_to_num(data, copy=False)
+    return np.reshape(data, (800, 800, 1)).tolist()
+
+
+if __name__ == '__main__':
+    gen = DataGenerator(400, 50)
+    for i in range(len(gen)):
+        data, label = gen[i]
+        pickle.dump(data, open(resource_filename(resource_dir, "data_batch{}.pickle".format(i)), "wb"))
+        pickle.dump(label, open(resource_filename(resource_dir, "label_batch{}.pickle".format(i)), "wb"))

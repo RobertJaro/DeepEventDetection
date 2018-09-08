@@ -19,7 +19,7 @@ def loadEvents(tstart, tend, types, session):
         res = [entry for entry in res if
                entry['obs_instrument'] == instrument and entry["obs_meanwavel"] == wavelength * 1e-8]
         if len(res) == 0:
-            raise Exception("No Data found for event type " + type)
+            raise Exception("No Data found for classification type " + type)
         hek_result.extend(res)
 
     for entry in hek_result:

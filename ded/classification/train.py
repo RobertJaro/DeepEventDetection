@@ -1,10 +1,10 @@
 from pkg_resources import resource_filename
-from tensorflow.keras import models
 from tensorflow.python.keras import Model
 from tensorflow.python.keras.callbacks import ModelCheckpoint, TensorBoard
 
+from ded.classification.data import DataGenerator
+from ded.classification.model import createModel
 from ded.config import resource_dir
-from ded.event.data import DataGenerator
 
 size = 400
 batch_size = 5
@@ -13,7 +13,7 @@ batch_size = 5
 class Trainer:
 
     def __init__(self):
-        self.model: Model = models.load_model(resource_filename(resource_dir, "classify_model.h5"))
+        self.model: Model = createModel()
 
         self.generator = DataGenerator(size=size, batch_size=batch_size, event_type="FL")
 
@@ -29,4 +29,4 @@ class Trainer:
 
 if __name__ == '__main__':
     trainer = Trainer()
-    trainer.train(20)
+    trainer.train(10)
